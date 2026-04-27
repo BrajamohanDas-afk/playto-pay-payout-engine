@@ -1,0 +1,72 @@
+# Environment files
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+
+# Python / Django
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Node / React / Vite
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+build/
+frontend/build/
+.vite/
+frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Logs and local runtime output
+*.log
+backend/server.out.log
+backend/server.err.log
+frontend/server.out.log
+frontend/server.err.log
+celerybeat-schedule
+celerybeat.pid
+
+# Docker/local database data
+postgres_data/
+redis_data/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+.obsidian/
+*.swp
+*.swo
+
+# Coverage/test artifacts
+junit.xml
+coverage.xml
+
+# Local planning notes
+TASKS_TO_APR29.md
+PRE_SUBMISSION_CHECKLIST.md
+brain/
