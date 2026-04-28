@@ -112,7 +112,7 @@ record, created = _get_or_create_idempotency_record(...)
 record = IdempotencyRecord.objects.select_for_update().get(pk=record.pk)
 ```
 
-The problem was that creation and locking were separated. A concurrent request could interact with the idempotency row before the winner had clearly established ownership through the unique insert path. The fix was to remove `get_or_create()` and use the insert-first sequence shown in Q3: try to insert, catch `IntegrityError`, then `select_for_update()` the existing row. That makes the database uniqueness constraint the serialization point for idempotency ownership.
+The problem was that creation and locking were separated. After `get_or_create` returned, a loser would see `created=False` and queue for `select_for_update`, but in the window before the lock was acquired the winner could already be applying state changes to the same row. The fix was to remove `get_or_create()` and use the insert-first sequence shown in Q3: try to insert, catch `IntegrityError`, then `select_for_update()` the existing row. That makes the database uniqueness constraint the serialization point for idempotency ownership.
 
 ## JWT-Only Merchant Identity
 
@@ -139,7 +139,7 @@ The tradeoff is that ledger and balance can drift if updates are not handled car
 
 ## Invariant Utility Story
 
-The implementation includes `apps/ledger/invariants.py`, which recomputes financial truth from ledger and payout state and compares it with `MerchantBalance`.
+The implementation includes `backend/apps/ledger/invariants.py`, which recomputes financial truth from ledger and payout state and compares it with `MerchantBalance`.
 
 The two key invariants are:
 
@@ -219,6 +219,8 @@ Retry state is explicit database state on the payout, not only Celery retry meta
 - `failed_at`
 
 A periodic task finds payouts stuck in `processing` for more than 30 seconds. It retries with exponential backoff and fails the payout after the maximum number of attempts, releasing held funds atomically.
+
+Note on deployment: the periodic task runs under Celery beat, which is not deployed on the free-tier Render instance (see README for details). The task code, retry logic, and stuck-payout tests are present and pass; `docker-compose.yml` reflects the proper architecture with a dedicated beat service.
 
 The settlement simulator is isolated so tests can deterministically force success, failure, and hang scenarios.
 

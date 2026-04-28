@@ -189,31 +189,39 @@ npm run build
 - Stuck processing payouts retry and eventually fail after max attempts.
 - Balance invariant utility validates ledger/materialized balance consistency.
 
-## Deployment Notes
+## Live Demo
 
-Deployment status:
+- **Frontend dashboard:** https://payout-engine-two.vercel.app
+- **Backend API:** https://playto-pay-payout-engine-nybe.onrender.com
 
-- Local Docker stack has been verified with PostgreSQL, Redis, Django, Celery worker, Celery beat, and the React frontend.
-- Production deployment steps are documented below.
-- No live deployment URLs are committed in this repository. If deployed, add the backend and frontend URLs here and in the submission form.
+### Demo credentials
 
-Backend on Render:
+- `merchant1@example.com` / `password123`
+- `merchant2@example.com` / `password123`
+- `merchant3@example.com` / `password123`
 
-- Root directory: `backend`
-- Build command: `pip install -r requirements.txt`
-- Start command: `gunicorn config.wsgi:application --bind 0.0.0.0:$PORT`
-- Required env: `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `DATABASE_URL`, `REDIS_URL`, `CORS_ALLOWED_ORIGINS`
-- Run migrations with `python manage.py migrate` as a deploy step or one-off shell command.
+Each seeded merchant starts with ₹2,500 (250,000 paise) of credit history.
 
-Worker services on Render:
+### Forcing settlement outcomes
 
-- Celery worker command: `celery -A config worker -l info`
-- Celery beat command: `celery -A config beat -l info`
-- Use the same `DATABASE_URL`, `REDIS_URL`, and payout retry/simulator env vars as the backend.
+The deployed backend runs the simulator in `by_bank_account` mode, so reviewers can deterministically test each path. Use these `bank_account_id` values when submitting a payout:
 
-Frontend on Vercel:
+- `bank_success_demo` → settlement succeeds, payout completes
+- `bank_fail_demo` → settlement fails, held funds returned to balance
+- `bank_hang_demo` → settlement hangs (would trigger retry logic if Celery beat were running)
 
-- Root directory: `frontend`
-- Build command: `npm run build`
-- Output directory: `dist`
-- Required env: `VITE_API_BASE_URL=https://<backend-host>`
+Any other `bank_account_id` falls into a deterministic outcome bucket based on the ID string.
+
+### Free-tier deployment notes
+
+- **Cold start:** Render free tier puts services to sleep after 15 minutes of inactivity. The first request after a sleep period may take 30-60 seconds while the service wakes up.
+- **Worker process:** Render no longer offers free Background Worker instances, so the Celery worker runs as a detached process inside the web service rather than as a dedicated service. The worker handles all `process_payout` tasks normally — payouts go pending → processing → completed/failed as expected.
+- **Beat scheduler:** Celery beat is **not running** on the deployed instance. This means periodic tasks (`retry_stuck_payouts`, `cleanup_expired_idempotency_records`) don't fire automatically in production. The retry logic itself is fully implemented and exercised in tests (`test_stuck_processing_payout_*`), and `docker-compose.yml` reflects the proper three-service architecture (web + worker + beat) for self-hosted deployment.
+
+## Production Deployment Reference
+
+For reference, the production deployment uses:
+
+- **Backend on Render:** Python 3 web service, root directory `backend`, build command `pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate && python manage.py seed_demo_data`, start command runs Celery worker as a detached process alongside gunicorn.
+- **Frontend on Vercel:** Vite preset, root directory `frontend`, env var `VITE_API_BASE_URL` pointing to the Render backend.
+- **Required backend env vars:** `DJANGO_SECRET_KEY`, `DJANGO_DEBUG=0`, `DJANGO_ALLOWED_HOSTS`, `DATABASE_URL`, `REDIS_URL`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND`, `CORS_ALLOWED_ORIGINS`, `PAYOUT_SIMULATOR_MODE=by_bank_account`.
